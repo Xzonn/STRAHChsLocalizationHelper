@@ -14,9 +14,22 @@ namespace Helper
     {
         static void Main(string[] args)
         {
-            PatchAsset();
-            PatchBundle();
-            PatchPak();
+            if (args.Contains("0"))
+            {
+                PatchAsset();
+            }
+            if (args.Contains("1"))
+            {
+                PatchBundle();
+            }
+            if (args.Contains("2"))
+            {
+                PatchPak();
+            }
+            if (args.Contains("3"))
+            {
+                CreateRomfsFolder();
+            }
         }
 
         static void PatchAsset()
@@ -153,7 +166,11 @@ namespace Helper
                         changed = true;
                     }
                 }
-                if (!changed) { continue; }
+                if (!changed)
+                {
+                    File.Copy($"files/{fileName}", $"out/{fileName}", true);
+                    continue;
+                }
 
                 Console.WriteLine($"Writing: {fileName}");
                 var writer = new BundleHelper.EndianBinaryWriter(File.Create($"out/{fileName}"));
@@ -185,6 +202,19 @@ namespace Helper
                 }
             }
             patch.Patch("out/scrpt.cpk", true, batch_file_list);
+        }
+
+        static void CreateRomfsFolder()
+        {
+            Directory.CreateDirectory("out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/");
+            File.Copy("out/level1",         "out/romfs/Data/level1",                                                  true);
+            File.Copy("out/scrpt.cpk",      "out/romfs/Data/StreamingAssets/scrpt.cpk",                               true);
+            File.Copy("out/vridge.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d", true);
+            Directory.CreateDirectory("out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/");
+            File.Copy("out/adv2.unity3d",       "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d",       true);
+            File.Copy("out/dataselect.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d", true);
+            File.Copy("out/omkalb.unity3d",     "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d",     true);
+            File.Copy("out/title.unity3d",      "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d",      true);
         }
     }
 }

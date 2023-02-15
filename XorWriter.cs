@@ -23,6 +23,8 @@ namespace Helper
                 if (readerByte != keyByte) { readerByte ^= keyByte; }
                 writer.Write(readerByte);
             }
+            reader.Close();
+            writer.Close();
         }
 
         public void Write(string inPath, string outPath)
