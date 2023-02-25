@@ -39,12 +39,12 @@ namespace Helper
             string[] FILE_NAMES = new string[]
             {
                 "level1",
-                "vridge.unity3d",
+                //"vridge.unity3d",
 
-                "adv2.unity3d",
-                "dataselect.unity3d",
-                "omkalb.unity3d",
-                "title.unity3d",
+                //"adv2.unity3d",
+                //"dataselect.unity3d",
+                //"omkalb.unity3d",
+                //"title.unity3d",
             };
             string[] CLASS_FOR_EXPORT = new string[]
             {
@@ -100,7 +100,6 @@ namespace Helper
                             TypeTreeHelper.WriteType(type, m_Type, bw);
                             replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
                         }
-                        break;
                     }
                     else if (m_ClassName == "Text")
                     {
@@ -134,7 +133,14 @@ namespace Helper
                 }
             }
 
-            File.WriteAllText("translated/Text.json", JsonConvert.SerializeObject(textTranslations, Formatting.Indented));
+            var textTranslationsSorted = new Dictionary<string, string>();
+            var textKeys = textTranslations.Keys.ToList();
+            textKeys.Sort();
+            foreach (var key in textKeys)
+            {
+                textTranslationsSorted[key] = textTranslations[key];
+            }
+            File.WriteAllText("translated/Text.json", JsonConvert.SerializeObject(textTranslationsSorted, Formatting.Indented));
         }
 
         static void PatchBundle()
