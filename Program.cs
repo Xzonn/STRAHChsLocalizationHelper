@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using BundleHelper;
 using System.Globalization;
+using Ionic.Zip;
 
 namespace Helper
 {
@@ -15,6 +16,10 @@ namespace Helper
     {
         static void Main(string[] args)
         {
+            if (args.Contains("4"))
+            {
+                ExtractFiles();
+            }
             if (args.Contains("0"))
             {
                 PatchAsset();
@@ -30,6 +35,17 @@ namespace Helper
             if (args.Contains("3"))
             {
                 CreateRomfsFolder();
+            }
+        }
+
+        static void ExtractFiles()
+        {
+            using (ZipFile archive = new ZipFile("files/files.zip"))
+            {
+                archive.Password = "hogehoge66";
+                archive.Encryption = EncryptionAlgorithm.PkzipWeak;
+                archive.StatusMessageTextWriter = System.Console.Out;
+                archive.ExtractAll("files", ExtractExistingFileAction.OverwriteSilently);
             }
         }
 
