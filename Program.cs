@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BundleHelper;
+using System.Globalization;
 
 namespace Helper
 {
@@ -39,12 +40,12 @@ namespace Helper
             string[] FILE_NAMES = new string[]
             {
                 "level1",
-                //"vridge.unity3d",
+                "vridge.unity3d",
 
-                //"adv2.unity3d",
-                //"dataselect.unity3d",
-                //"omkalb.unity3d",
-                //"title.unity3d",
+                "adv2.unity3d",
+                "dataselect.unity3d",
+                "omkalb.unity3d",
+                "title.unity3d",
             };
             string[] CLASS_FOR_EXPORT = new string[]
             {
@@ -135,7 +136,8 @@ namespace Helper
 
             var textTranslationsSorted = new Dictionary<string, string>();
             var textKeys = textTranslations.Keys.ToList();
-            textKeys.Sort();
+            var comparer = StringComparer.Create(new CultureInfo("ja-JP"), false);
+            textKeys.Sort(comparer);
             foreach (var key in textKeys)
             {
                 textTranslationsSorted[key] = textTranslations[key];
