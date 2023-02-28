@@ -1,14 +1,14 @@
 ﻿using AssetStudio;
+using BundleHelper;
+using Ionic.Zip;
 using LibCPK;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using BundleHelper;
-using System.Globalization;
-using Ionic.Zip;
 
 namespace Helper
 {
@@ -16,6 +16,20 @@ namespace Helper
     {
         static void Main(string[] args)
         {
+            if (args.Length == 0)
+            {
+                args = new string[] { "0", "1", "2", "3", "4" };
+            }
+            while (!Directory.Exists("files/"))
+            {
+                var parent = Directory.GetParent(Directory.GetCurrentDirectory());
+                if (parent == null)
+                {
+                    Console.WriteLine("Can not find input folder. Exit.");
+                    Environment.Exit(1);
+                }
+                Directory.SetCurrentDirectory(parent.FullName);
+            }
             if (args.Contains("4"))
             {
                 ExtractFiles();
