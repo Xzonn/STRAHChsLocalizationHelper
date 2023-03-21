@@ -20,7 +20,7 @@ namespace Helper
                 long pos = reader.BaseStream.Position;
                 byte readerByte = reader.ReadByte();
                 byte keyByte = key[pos % key.Length];
-                if (readerByte != keyByte) { readerByte ^= keyByte; }
+                if (readerByte != 0 && readerByte != keyByte) { readerByte ^= keyByte; }
                 writer.Write(readerByte);
             }
             reader.Close();

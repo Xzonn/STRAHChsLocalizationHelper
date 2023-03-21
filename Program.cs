@@ -54,13 +54,11 @@ namespace Helper
 
         static void ExtractFiles()
         {
-            using (ZipFile archive = new ZipFile("files/files.zip"))
-            {
-                archive.Password = "hogehoge66";
-                archive.Encryption = EncryptionAlgorithm.PkzipWeak;
-                archive.StatusMessageTextWriter = System.Console.Out;
-                archive.ExtractAll("files", ExtractExistingFileAction.OverwriteSilently);
-            }
+            using ZipFile archive = new("files/files.zip");
+            archive.Password = "hogehoge66";
+            archive.Encryption = EncryptionAlgorithm.PkzipWeak;
+            archive.StatusMessageTextWriter = System.Console.Out;
+            archive.ExtractAll("files", ExtractExistingFileAction.OverwriteSilently);
         }
 
         static void PatchAsset()
@@ -83,21 +81,21 @@ namespace Helper
                 "FlowChartData",
             };
 
-            AssetsManager manager = new AssetsManager
+            AssetsManager manager = new()
             {
                 SpecifyUnityVersion = "2020.3.37f1"
             };
-            AssemblyLoader assemblyLoader = new AssemblyLoader();
+            AssemblyLoader assemblyLoader = new();
             assemblyLoader.Load("files/DummyDll");
 
             manager.LoadFiles(FILE_NAMES.Select(x => $"files/{x}").ToArray());
             if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
             if (!Directory.Exists("out")) { Directory.CreateDirectory("out"); }
 
-            Dictionary<string, string> textTranslations = new Dictionary<string, string>();
-            if (File.Exists("translated/Text.json"))
+            Dictionary<string, string> textTranslations = new();
+            if (File.Exists("texts/zh_Hans/Text.json"))
             {
-                textTranslations = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("translated/Text.json"));
+                textTranslations = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("texts/zh_Hans/Text.json"));
             }
 
             foreach (var assetsFile in manager.assetsFileList)
@@ -105,29 +103,26 @@ namespace Helper
                 var replaceStreams = new Dictionary<long, Stream> { };
                 foreach (var @object in assetsFile.Objects)
                 {
-                    if (!(@object is MonoBehaviour m_MonoBehaviour) || !m_MonoBehaviour.m_Script.TryGet(out var m_Script)) { continue; }
+                    if (@object is not MonoBehaviour m_MonoBehaviour || !m_MonoBehaviour.m_Script.TryGet(out var m_Script)) { continue; }
                     var m_ClassName = m_Script.m_ClassName;
                     if (CLASS_FOR_EXPORT.Contains(m_ClassName))
                     {
                         var m_Type = m_MonoBehaviour.serializedType?.m_Type;
-                        if (m_Type == null)
-                        {
-                            m_Type = m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
-                        }
+                        m_Type ??= m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
 
-                        if (!File.Exists($"translated/{m_ClassName}.json"))
+                        if (!File.Exists($"texts/zh_Hans/{m_ClassName}.json"))
                         {
                             var type = m_MonoBehaviour.ToType(m_Type);
                             string json = JsonConvert.SerializeObject(type, Formatting.Indented);
-                            File.WriteAllText($"translated/{m_Script.m_ClassName}.json", json);
+                            File.WriteAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json", json);
                         }
                         else
                         {
-                            string json = File.ReadAllText($"translated/{m_Script.m_ClassName}.json");
+                            string json = File.ReadAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json");
                             var jObject = JsonConvert.DeserializeObject<JObject>(json);
                             var type = JsonHelper.ReadType(m_Type, jObject);
-                            MemoryStream memoryStream = new MemoryStream();
-                            BinaryWriter bw = new BinaryWriter(memoryStream);
+                            MemoryStream memoryStream = new();
+                            BinaryWriter bw = new(memoryStream);
                             TypeTreeHelper.WriteType(type, m_Type, bw);
                             replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
                         }
@@ -135,10 +130,7 @@ namespace Helper
                     else if (m_ClassName == "Text")
                     {
                         var m_Type = m_MonoBehaviour.serializedType?.m_Type;
-                        if (m_Type == null)
-                        {
-                            m_Type = m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
-                        }
+                        m_Type ??= m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
                         var type = m_MonoBehaviour.ToType(m_Type);
                         string text = (string)type["m_Text"];
                         if (textTranslations.TryGetValue(text, out string translation))
@@ -146,8 +138,8 @@ namespace Helper
                             if (translation != text)
                             {
                                 type["m_Text"] = translation;
-                                MemoryStream memoryStream = new MemoryStream();
-                                BinaryWriter bw = new BinaryWriter(memoryStream);
+                                MemoryStream memoryStream = new();
+                                BinaryWriter bw = new(memoryStream);
                                 TypeTreeHelper.WriteType(type, m_Type, bw);
                                 replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
                             }
@@ -172,7 +164,7 @@ namespace Helper
             {
                 textTranslationsSorted[key] = textTranslations[key];
             }
-            File.WriteAllText("translated/Text.json", JsonConvert.SerializeObject(textTranslationsSorted, Formatting.Indented));
+            File.WriteAllText("texts/zh_Hans/Text.json", JsonConvert.SerializeObject(textTranslationsSorted, Formatting.Indented));
         }
 
         static void PatchBundle()
@@ -190,7 +182,7 @@ namespace Helper
             foreach (string fileName in FILE_NAMES)
             {
                 var reader = new BundleHelper.EndianBinaryReader(File.OpenRead($"files/{fileName}"));
-                Bundle bundleData = new Bundle(reader);
+                Bundle bundleData = new(reader);
 
                 reader.Close();
 
@@ -215,13 +207,20 @@ namespace Helper
                 bundleData.DumpRaw(writer);
 
                 writer.Close();
+                foreach (var file in bundleData.FileList)
+                {
+                    if (File.Exists($"out/{file.fileName}"))
+                    {
+                        File.Delete($"out/{file.fileName}");
+                    }
+                }
             }
         }
 
         static void PatchPak()
         {
             var writer = new XorWriter();
-            foreach (var fileName in Directory.GetFiles("translated/scrpt.cpk", "*.json"))
+            foreach (var fileName in Directory.GetFiles("texts/zh_Hans/scrpt.cpk", "*.json"))
             {
                 var rawName = Path.GetFileNameWithoutExtension(fileName);
                 Console.WriteLine($"Writing: {rawName}");
@@ -240,19 +239,30 @@ namespace Helper
                 }
             }
             patch.Patch("out/scrpt.cpk", true, batch_file_list);
+            foreach (var fileName in Directory.GetFiles("texts/zh_Hans/scrpt.cpk", "*.json"))
+            {
+                var rawName = Path.GetFileNameWithoutExtension(fileName);
+                File.Delete(Path.Combine("out", rawName));
+            }
         }
 
         static void CreateRomfsFolder()
         {
             Directory.CreateDirectory("out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/");
-            File.Copy("out/level1",         "out/romfs/Data/level1",                                                  true);
-            File.Copy("out/scrpt.cpk",      "out/romfs/Data/StreamingAssets/scrpt.cpk",                               true);
-            File.Copy("out/vridge.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d", true);
+            Copy("out/level1",         "out/romfs/Data/level1");
+            Copy("out/scrpt.cpk",      "out/romfs/Data/StreamingAssets/scrpt.cpk");
+            Copy("out/vridge.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d");
             Directory.CreateDirectory("out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/");
-            File.Copy("out/adv2.unity3d",       "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d",       true);
-            File.Copy("out/dataselect.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d", true);
-            File.Copy("out/omkalb.unity3d",     "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d",     true);
-            File.Copy("out/title.unity3d",      "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d",      true);
+            Copy("out/adv2.unity3d",       "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d");
+            Copy("out/dataselect.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d");
+            Copy("out/omkalb.unity3d",     "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d");
+            Copy("out/title.unity3d",      "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d");
+        }
+
+        static void Copy(string source, string destination)
+        {
+            if (!File.Exists(source)) return;
+            File.Move(source, destination, true);
         }
     }
 }
