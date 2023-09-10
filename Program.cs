@@ -16,49 +16,23 @@ namespace Helper
     {
         static void Main(string[] args)
         {
-            if (args.Length == 0)
-            {
-                args = new string[] { "0", "1", "2", "3", "4" };
-            }
-            while (!Directory.Exists("files/"))
-            {
-                var parent = Directory.GetParent(Directory.GetCurrentDirectory());
-                if (parent == null)
-                {
-                    Console.WriteLine("Can not find input folder. Exit.");
-                    Environment.Exit(1);
-                }
-                Directory.SetCurrentDirectory(parent.FullName);
-            }
-            if (args.Contains("4"))
-            {
-                ExtractFiles();
-            }
-            if (args.Contains("0"))
-            {
-                PatchAsset();
-            }
-            if (args.Contains("1"))
-            {
-                PatchBundle();
-            }
-            if (args.Contains("2"))
-            {
-                PatchPak();
-            }
-            if (args.Contains("3"))
-            {
-                CreateRomfsFolder();
-            }
+            ExtractFiles();
+            PatchAsset();
+            PatchBundle();
+            PatchPak();
+            CreateRomfsFolder();
         }
 
         static void ExtractFiles()
         {
-            using ZipFile archive = new("files/files.zip");
-            archive.Password = "hogehoge66";
-            archive.Encryption = EncryptionAlgorithm.PkzipWeak;
-            archive.StatusMessageTextWriter = System.Console.Out;
-            archive.ExtractAll("files", ExtractExistingFileAction.OverwriteSilently);
+            if (!File.Exists("files/level1"))
+            {
+                using ZipFile archive = new("files/files.zip");
+                archive.Password = "hogehoge66";
+                archive.Encryption = EncryptionAlgorithm.PkzipWeak;
+                archive.StatusMessageTextWriter = Console.Out;
+                archive.ExtractAll("files", ExtractExistingFileAction.OverwriteSilently);
+            }
         }
 
         static void PatchAsset()
@@ -89,8 +63,8 @@ namespace Helper
             assemblyLoader.Load("files/DummyDll");
 
             manager.LoadFiles(FILE_NAMES.Select(x => $"files/{x}").ToArray());
-            if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
-            if (!Directory.Exists("out")) { Directory.CreateDirectory("out"); }
+            // if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
+            Directory.CreateDirectory("out");
 
             Dictionary<string, string> textTranslations = new();
             if (File.Exists("texts/zh_Hans/Text.json"))
@@ -248,15 +222,15 @@ namespace Helper
 
         static void CreateRomfsFolder()
         {
-            Directory.CreateDirectory("out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/");
-            Copy("out/level1",         "out/romfs/Data/level1");
-            Copy("out/scrpt.cpk",      "out/romfs/Data/StreamingAssets/scrpt.cpk");
-            Copy("out/vridge.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d");
-            Directory.CreateDirectory("out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/");
-            Copy("out/adv2.unity3d",       "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d");
-            Copy("out/dataselect.unity3d", "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d");
-            Copy("out/omkalb.unity3d",     "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d");
-            Copy("out/title.unity3d",      "out/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d");
+            Directory.CreateDirectory("out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/data/");
+            Copy("out/level1",         "out/01005940182ec000/romfs/Data/level1");
+            Copy("out/scrpt.cpk",      "out/01005940182ec000/romfs/Data/StreamingAssets/scrpt.cpk");
+            Copy("out/vridge.unity3d", "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d");
+            Directory.CreateDirectory("out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/");
+            Copy("out/adv2.unity3d",       "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d");
+            Copy("out/dataselect.unity3d", "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d");
+            Copy("out/omkalb.unity3d",     "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d");
+            Copy("out/title.unity3d",      "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d");
         }
 
         static void Copy(string source, string destination)
