@@ -53,6 +53,7 @@ namespace Helper
             {
                 "AppGameDataTipsData",
                 "FlowChartData",
+                "TextFlyMoveData",
             };
 
             AssetsManager manager = new()
@@ -89,6 +90,7 @@ namespace Helper
                             var type = m_MonoBehaviour.ToType(m_Type);
                             string json = JsonConvert.SerializeObject(type, Formatting.Indented);
                             File.WriteAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json", json);
+                            Console.WriteLine($"Extracting: {m_ClassName}");
                         }
                         else
                         {
@@ -99,6 +101,7 @@ namespace Helper
                             BinaryWriter bw = new(memoryStream);
                             TypeTreeHelper.WriteType(type, m_Type, bw);
                             replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
+                            Console.WriteLine($"Replacing: {m_ClassName}");
                         }
                     }
                     else if (m_ClassName == "Text")
@@ -116,6 +119,7 @@ namespace Helper
                                 BinaryWriter bw = new(memoryStream);
                                 TypeTreeHelper.WriteType(type, m_Type, bw);
                                 replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
+                                Console.WriteLine($"Replacing: {m_ClassName} ({m_MonoBehaviour.m_PathID})");
                             }
                         }
                         else
