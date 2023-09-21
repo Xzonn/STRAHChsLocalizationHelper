@@ -54,17 +54,17 @@ namespace Helper
                 "AppGameDataTipsData",
                 "FlowChartData",
                 "TextFlyMoveData",
+
+                "Text",
             };
 
             AssetsManager manager = new()
             {
                 SpecifyUnityVersion = "2020.3.37f1"
             };
-            AssemblyLoader assemblyLoader = new();
-            assemblyLoader.Load("files/DummyDll");
 
-            manager.LoadFiles(FILE_NAMES.Select(x => $"files/{x}").ToArray());
-            // if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
+            manager.LoadFiles(FILE_NAMES.Select(x => $"files/Switch/{x}").ToArray());
+            if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
             Directory.CreateDirectory("out");
 
             Dictionary<string, string> textTranslations = new();
@@ -80,35 +80,17 @@ namespace Helper
                 {
                     if (@object is not MonoBehaviour m_MonoBehaviour || !m_MonoBehaviour.m_Script.TryGet(out var m_Script)) { continue; }
                     var m_ClassName = m_Script.m_ClassName;
-                    if (CLASS_FOR_EXPORT.Contains(m_ClassName))
+                    if (!CLASS_FOR_EXPORT.Contains(m_ClassName)) { continue; }
+                    var m_Type = m_MonoBehaviour.serializedType?.m_Type;
+                    if (m_Type == null)
                     {
-                        var m_Type = m_MonoBehaviour.serializedType?.m_Type;
-                        m_Type ??= m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
-
-                        if (!File.Exists($"texts/zh_Hans/{m_ClassName}.json"))
-                        {
-                            var type = m_MonoBehaviour.ToType(m_Type);
-                            string json = JsonConvert.SerializeObject(type, Formatting.Indented);
-                            File.WriteAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json", json);
-                            Console.WriteLine($"Extracting: {m_ClassName}");
-                        }
-                        else
-                        {
-                            string json = File.ReadAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json");
-                            var jObject = JsonConvert.DeserializeObject<JObject>(json);
-                            var type = JsonHelper.ReadType(m_Type, jObject);
-                            MemoryStream memoryStream = new();
-                            BinaryWriter bw = new(memoryStream);
-                            TypeTreeHelper.WriteType(type, m_Type, bw);
-                            replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
-                            Console.WriteLine($"Replacing: {m_ClassName}");
-                        }
+                        using var fs = File.OpenRead($"files/TypeTree/{m_ClassName}.bin");
+                        m_Type = TypeTreeHelper.LoadTypeTree(new BinaryReader(fs));
                     }
-                    else if (m_ClassName == "Text")
+                    var type = m_MonoBehaviour.ToType(m_Type);
+
+                    if (m_ClassName == "Text")
                     {
-                        var m_Type = m_MonoBehaviour.serializedType?.m_Type;
-                        m_Type ??= m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
-                        var type = m_MonoBehaviour.ToType(m_Type);
                         string text = (string)type["m_Text"];
                         if (textTranslations.TryGetValue(text, out string translation))
                         {
@@ -119,7 +101,7 @@ namespace Helper
                                 BinaryWriter bw = new(memoryStream);
                                 TypeTreeHelper.WriteType(type, m_Type, bw);
                                 replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
-                                Console.WriteLine($"Replacing: {m_ClassName} ({m_MonoBehaviour.m_PathID})");
+                                Console.WriteLine($"Replacing: {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName} ({m_MonoBehaviour.m_PathID})");
                             }
                         }
                         else
@@ -127,9 +109,30 @@ namespace Helper
                             textTranslations[text] = text;
                         }
                     }
+                    else
+                    {
+                        if (!File.Exists($"texts/zh_Hans/{m_ClassName}.json"))
+                        {
+                            string json = JsonConvert.SerializeObject(type, Formatting.Indented);
+                            File.WriteAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json", json);
+                            Console.WriteLine($"Extracting: {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName}");
+                        }
+                        else
+                        {
+                            string json = File.ReadAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json");
+                            var jObject = JsonConvert.DeserializeObject<JObject>(json);
+                            type = JsonHelper.ReadType(m_Type, jObject);
+                            MemoryStream memoryStream = new();
+                            BinaryWriter bw = new(memoryStream);
+                            TypeTreeHelper.WriteType(type, m_Type, bw);
+                            replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
+                            Console.WriteLine($"Replacing: {m_ClassName}");
+                        }
+                    }
                 }
                 if (replaceStreams.Count > 0)
                 {
+                    Console.WriteLine($"Saving: {assetsFile.fileName}");
                     assetsFile.SaveAs($"out/{assetsFile.fileName}", replaceStreams);
                 }
             }
@@ -159,7 +162,7 @@ namespace Helper
 
             foreach (string fileName in FILE_NAMES)
             {
-                var reader = new BundleHelper.EndianBinaryReader(File.OpenRead($"files/{fileName}"));
+                var reader = new BundleHelper.EndianBinaryReader(File.OpenRead($"files/Switch/{fileName}"));
                 Bundle bundleData = new(reader);
 
                 reader.Close();
@@ -169,14 +172,12 @@ namespace Helper
                 {
                     if (File.Exists($"out/{file.fileName}"))
                     {
-                        Console.WriteLine(file.fileName);
                         file.stream = File.OpenRead($"out/{file.fileName}");
                         changed = true;
                     }
                 }
                 if (!changed)
                 {
-                    File.Copy($"files/{fileName}", $"out/{fileName}", true);
                     continue;
                 }
 
@@ -205,9 +206,9 @@ namespace Helper
                 writer.Write(fileName, Path.Combine("out", rawName));
             }
             var cpk = new CPK();
-            cpk.ReadCPK("files/scrpt.cpk");
+            cpk.ReadCPK("files/Switch/scrpt.cpk");
             var batch_file_list = new Dictionary<string, string>();
-            var patch = new PatchCPK(cpk, Path.GetFullPath("files/scrpt.cpk"));
+            var patch = new PatchCPK(cpk, Path.GetFullPath("files/Switch/scrpt.cpk"));
             patch.SetListener(null, Console.WriteLine, null);
             foreach (var file in cpk.fileTable)
             {
