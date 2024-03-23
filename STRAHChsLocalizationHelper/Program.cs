@@ -4,11 +4,7 @@ using Ionic.Zip;
 using LibCPK;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 
 namespace Helper
 {
@@ -39,8 +35,8 @@ namespace Helper
         {
             Logger.Default = new LogHelper();
 
-            string[] FILE_NAMES = new string[]
-            {
+            string[] FILE_NAMES =
+            [
                 "level1",
                 "vridge.unity3d",
 
@@ -48,15 +44,15 @@ namespace Helper
                 "dataselect.unity3d",
                 "omkalb.unity3d",
                 "title.unity3d",
-            };
-            string[] CLASS_FOR_EXPORT = new string[]
-            {
+            ];
+            string[] CLASS_FOR_EXPORT =
+            [
                 "AppGameDataTipsData",
                 "FlowChartData",
                 "TextFlyMoveData",
 
                 "Text",
-            };
+            ];
 
             AssetsManager manager = new()
             {
@@ -67,10 +63,10 @@ namespace Helper
             if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
             Directory.CreateDirectory("out");
 
-            Dictionary<string, string> textTranslations = new();
+            Dictionary<string, string> textTranslations = [];
             if (File.Exists("texts/zh_Hans/Text.json"))
             {
-                textTranslations = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("texts/zh_Hans/Text.json"));
+                textTranslations = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("texts/zh_Hans/Text.json"))!;
             }
 
             foreach (var assetsFile in manager.assetsFileList)
@@ -91,8 +87,8 @@ namespace Helper
 
                     if (m_ClassName == "Text")
                     {
-                        string text = (string)type["m_Text"];
-                        if (textTranslations.TryGetValue(text, out string translation))
+                        string text = (string)type["m_Text"]!;
+                        if (textTranslations.TryGetValue(text, out var translation))
                         {
                             if (translation != text)
                             {
@@ -150,15 +146,15 @@ namespace Helper
 
         static void PatchBundle()
         {
-            string[] FILE_NAMES = new string[]
-            {
+            string[] FILE_NAMES =
+            [
                 "vridge.unity3d",
 
                 "adv2.unity3d",
                 "dataselect.unity3d",
                 "omkalb.unity3d",
                 "title.unity3d",
-            };
+            ];
 
             foreach (string fileName in FILE_NAMES)
             {

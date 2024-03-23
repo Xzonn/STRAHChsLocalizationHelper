@@ -1,5 +1,4 @@
 ﻿using AssetStudio;
-using System;
 
 namespace Helper
 {

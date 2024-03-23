@@ -1,7 +1,4 @@
-﻿using System.IO;
-using System.Text;
-
-namespace Helper
+﻿namespace Helper
 {
     internal class XorWriter
     {
