@@ -14,7 +14,9 @@ namespace Helper
             [
                 "sharedassets0.assets",
                 "sharedassets1.assets",
+                "level0",
                 "level1",
+                "level2",
 
                 "fonts.unity3d",
                 "manualp.unity3d",
@@ -50,13 +52,14 @@ namespace Helper
         {
             if (!File.Exists($"original_files/{platform}/level1"))
             {
+                Directory.CreateDirectory($"original_files/{platform}/");
                 using ZipFile archive = new($"original_files/{platform}.zip")
                 {
                     Password = "hogehoge66",
                     Encryption = EncryptionAlgorithm.PkzipWeak,
                     StatusMessageTextWriter = Console.Out
                 };
-                archive.ExtractAll($"original_files/{platform}", ExtractExistingFileAction.OverwriteSilently);
+                archive.ExtractAll($"original_files/{platform}/", ExtractExistingFileAction.OverwriteSilently);
             }
         }
 
@@ -204,7 +207,9 @@ namespace Helper
             string romfsDir = "out/Switch/01005940182ec000/romfs/Data";
             Directory.CreateDirectory($"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/");
             Directory.CreateDirectory($"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/");
+            Copy("out/Switch/level0",               $"{romfsDir}/level0");
             Copy("out/Switch/level1",               $"{romfsDir}/level1");
+            Copy("out/Switch/level2",               $"{romfsDir}/level2");
             Copy("out/Switch/sharedassets0.assets", $"{romfsDir}/sharedassets0.assets");
             Copy("out/Switch/sharedassets1.assets", $"{romfsDir}/sharedassets1.assets");
             Copy("out/Switch/scrpt.cpk",            $"{romfsDir}/StreamingAssets/scrpt.cpk");
