@@ -4,9 +4,11 @@ on:
   push:
     branches: 
       - master
+      - test
     paths-ignore:
       - '*.md'
       - '**/.gitignore'
+  workflow_call:
 
 jobs:
   build:
@@ -15,6 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          repository: Xzonn/STRAHChsLocalizationHelper
+          ref: master
           submodules: recursive
       - uses: microsoft/setup-msbuild@v2
         with:
