@@ -3,65 +3,72 @@ using BundleHelper;
 using Ionic.Zip;
 using LibCPK;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using SixLabors.ImageSharp.Processing;
 using System.Globalization;
 
 namespace Helper
 {
     internal class Program
     {
-        static void Main(string[] args)
-        {
-            ExtractFiles();
-            PatchAsset();
-            PatchBundle();
-            PatchPak();
-            CreateRomfsFolder();
-        }
-
-        static void ExtractFiles()
-        {
-            if (!File.Exists("files/level1"))
-            {
-                using ZipFile archive = new("files/files.zip");
-                archive.Password = "hogehoge66";
-                archive.Encryption = EncryptionAlgorithm.PkzipWeak;
-                archive.StatusMessageTextWriter = Console.Out;
-                archive.ExtractAll("files", ExtractExistingFileAction.OverwriteSilently);
-            }
-        }
-
-        static void PatchAsset()
-        {
-            Logger.Default = new LogHelper();
-
-            string[] FILE_NAMES =
+        static readonly string[] FILE_NAMES =
             [
+                "sharedassets0.assets",
+                "sharedassets1.assets",
                 "level1",
+
+                "fonts.unity3d",
+                "manualp.unity3d",
+                "manuals.unity3d",
                 "vridge.unity3d",
 
                 "adv2.unity3d",
+                "ci.unity3d",
                 "dataselect.unity3d",
                 "omkalb.unity3d",
                 "title.unity3d",
             ];
-            string[] CLASS_FOR_EXPORT =
-            [
-                "AppGameDataTipsData",
-                "FlowChartData",
-                "TextFlyMoveData",
 
-                "Text",
-            ];
+        static void Main(string[] args)
+        {
+            Logger.Default = new LogHelper();
 
+            foreach (var platform in new string[] { "Switch" })
+            {
+                ExtractFiles(platform);
+                PatchAsset(platform);
+                PatchBundle(platform);
+                PatchPak(platform);
+
+                if (platform == "Switch")
+                {
+                    CreateRomfsFolder();
+                }
+            }
+        }
+
+        static void ExtractFiles(string platform)
+        {
+            if (!File.Exists($"original_files/{platform}/level1"))
+            {
+                using ZipFile archive = new($"original_files/{platform}.zip")
+                {
+                    Password = "hogehoge66",
+                    Encryption = EncryptionAlgorithm.PkzipWeak,
+                    StatusMessageTextWriter = Console.Out
+                };
+                archive.ExtractAll($"original_files/{platform}", ExtractExistingFileAction.OverwriteSilently);
+            }
+        }
+
+        static void PatchAsset(string platform)
+        {
             AssetsManager manager = new()
             {
                 SpecifyUnityVersion = "2020.3.37f1"
             };
 
-            manager.LoadFiles(FILE_NAMES.Select(x => $"files/Switch/{x}").ToArray());
-            if (!Directory.Exists("json")) { Directory.CreateDirectory("json"); }
-            Directory.CreateDirectory("out");
+            manager.LoadFiles(FILE_NAMES.Select(x => $"original_files/{platform}/{x}").ToArray());
+            Directory.CreateDirectory($"out/{platform}");
 
             Dictionary<string, string> textTranslations = [];
             if (File.Exists("texts/zh_Hans/Text.json"))
@@ -71,65 +78,45 @@ namespace Helper
 
             foreach (var assetsFile in manager.assetsFileList)
             {
-                var replaceStreams = new Dictionary<long, Stream> { };
+                var fileName = Path.GetFileNameWithoutExtension(assetsFile.fileName);
+                var assetHelper = new AssetHelper();
                 foreach (var @object in assetsFile.Objects)
                 {
-                    if (@object is not MonoBehaviour m_MonoBehaviour || !m_MonoBehaviour.m_Script.TryGet(out var m_Script)) { continue; }
-                    var m_ClassName = m_Script.m_ClassName;
-                    if (!CLASS_FOR_EXPORT.Contains(m_ClassName)) { continue; }
-                    var m_Type = m_MonoBehaviour.serializedType?.m_Type;
-                    if (m_Type == null)
+                    if (@object is MonoBehaviour m_MonoBehaviour
+                        && m_MonoBehaviour.m_Script.TryGet(out var m_Script))
                     {
-                        using var fs = File.OpenRead($"files/TypeTree/{m_ClassName}.bin");
-                        m_Type = TypeTreeHelper.LoadTypeTree(new BinaryReader(fs));
+                        assetHelper.ReplaceMonoBehaviour(m_MonoBehaviour, m_Script, textTranslations);
                     }
-                    var type = m_MonoBehaviour.ToType(m_Type);
-
-                    if (m_ClassName == "Text")
+                    else if ((@object is Texture2D m_Texture2D)
+                        && File.Exists($"files/images/{m_Texture2D.m_Name}.png"))
                     {
-                        string text = (string)type["m_Text"]!;
-                        if (textTranslations.TryGetValue(text, out var translation))
-                        {
-                            if (translation != text)
-                            {
-                                type["m_Text"] = translation;
-                                MemoryStream memoryStream = new();
-                                BinaryWriter bw = new(memoryStream);
-                                TypeTreeHelper.WriteType(type, m_Type, bw);
-                                replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
-                                Console.WriteLine($"Replacing: {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName} ({m_MonoBehaviour.m_PathID})");
-                            }
-                        }
-                        else
-                        {
-                            textTranslations[text] = text;
-                        }
+                        assetHelper.ReplaceTexture(m_Texture2D);
                     }
-                    else
+                    else if ((@object is Sprite m_Sprite)
+                        && File.Exists($"files/sprites/{m_Sprite.m_Name}.png"))
                     {
-                        if (!File.Exists($"texts/zh_Hans/{m_ClassName}.json"))
-                        {
-                            string json = JsonConvert.SerializeObject(type, Formatting.Indented);
-                            File.WriteAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json", json);
-                            Console.WriteLine($"Extracting: {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName}");
-                        }
-                        else
-                        {
-                            string json = File.ReadAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json");
-                            var jObject = JsonConvert.DeserializeObject<JObject>(json);
-                            type = JsonHelper.ReadType(m_Type, jObject);
-                            MemoryStream memoryStream = new();
-                            BinaryWriter bw = new(memoryStream);
-                            TypeTreeHelper.WriteType(type, m_Type, bw);
-                            replaceStreams[m_MonoBehaviour.m_PathID] = memoryStream;
-                            Console.WriteLine($"Replacing: {m_ClassName}");
-                        }
+                        assetHelper.ReplaceSprite(m_Sprite);
+                    }
+                    else if ((@object is Font m_Font)
+                        && File.Exists($"files/fonts/{m_Font.m_Name}.ttf"))
+                    {
+                        assetHelper.ReplaceFont(m_Font);
                     }
                 }
-                if (replaceStreams.Count > 0)
+                foreach (var (m_PathID, image) in assetHelper.ReplacedImages)
                 {
-                    Console.WriteLine($"Saving: {assetsFile.fileName}");
-                    assetsFile.SaveAs($"out/{assetsFile.fileName}", replaceStreams);
+                    image.Mutate(_ => _.Flip(FlipMode.Vertical));
+                    assetHelper.ReplaceTexture((Texture2D)assetsFile.Objects.Where(_ => _.m_PathID == m_PathID).First());
+                    image.Dispose();
+                }
+                if (assetHelper.ReplacedStreams.Count > 0)
+                {
+                    assetsFile.SaveAs($"out/{platform}/{assetsFile.fileName}", assetHelper.ReplacedStreams);
+                    foreach (var (m_PathID, stream) in assetHelper.ReplacedStreams)
+                    {
+                        stream.Dispose();
+                    }
+                    Console.WriteLine($"Saved: {assetsFile.fileName}");
                 }
             }
 
@@ -144,21 +131,12 @@ namespace Helper
             File.WriteAllText("texts/zh_Hans/Text.json", JsonConvert.SerializeObject(textTranslationsSorted, Formatting.Indented));
         }
 
-        static void PatchBundle()
+        static void PatchBundle(string platform)
         {
-            string[] FILE_NAMES =
-            [
-                "vridge.unity3d",
-
-                "adv2.unity3d",
-                "dataselect.unity3d",
-                "omkalb.unity3d",
-                "title.unity3d",
-            ];
-
             foreach (string fileName in FILE_NAMES)
             {
-                var reader = new BundleHelper.EndianBinaryReader(File.OpenRead($"files/Switch/{fileName}"));
+                if (!fileName.EndsWith(".unity3d")) { continue; }
+                var reader = new BundleHelper.EndianBinaryReader(File.OpenRead($"original_files/{platform}/{fileName}"));
                 Bundle bundleData = new(reader);
 
                 reader.Close();
@@ -166,9 +144,9 @@ namespace Helper
                 bool changed = false;
                 foreach (var file in bundleData.FileList)
                 {
-                    if (File.Exists($"out/{file.fileName}"))
+                    if (File.Exists($"out/{platform}/{file.fileName}"))
                     {
-                        file.stream = File.OpenRead($"out/{file.fileName}");
+                        file.stream = File.OpenRead($"out/{platform}/{file.fileName}");
                         changed = true;
                     }
                 }
@@ -178,60 +156,67 @@ namespace Helper
                 }
 
                 Console.WriteLine($"Writing: {fileName}");
-                var writer = new BundleHelper.EndianBinaryWriter(File.Create($"out/{fileName}"));
+                var writer = new BundleHelper.EndianBinaryWriter(File.Create($"out/{platform}/{fileName}"));
                 bundleData.DumpRaw(writer);
 
                 writer.Close();
                 foreach (var file in bundleData.FileList)
                 {
-                    if (File.Exists($"out/{file.fileName}"))
+                    if (File.Exists($"out/{platform}/{file.fileName}"))
                     {
-                        File.Delete($"out/{file.fileName}");
+                        File.Delete($"out/{platform}/{file.fileName}");
                     }
                 }
             }
         }
 
-        static void PatchPak()
+        static void PatchPak(string platform)
         {
             var writer = new XorWriter();
             foreach (var fileName in Directory.GetFiles("texts/zh_Hans/scrpt.cpk", "*.json"))
             {
                 var rawName = Path.GetFileNameWithoutExtension(fileName);
                 Console.WriteLine($"Writing: {rawName}");
-                writer.Write(fileName, Path.Combine("out", rawName));
+                writer.Write(fileName, $"out/{platform}/{rawName}");
             }
             var cpk = new CPK();
-            cpk.ReadCPK("files/Switch/scrpt.cpk");
-            var batch_file_list = new Dictionary<string, string>();
-            var patch = new PatchCPK(cpk, Path.GetFullPath("files/Switch/scrpt.cpk"));
+            cpk.ReadCPK($"original_files/{platform}/scrpt.cpk");
+            var replacedFiles = new Dictionary<string, string>();
+            var patch = new PatchCPK(cpk, Path.GetFullPath($"original_files/{platform}/scrpt.cpk"));
             patch.SetListener(null, Console.WriteLine, null);
             foreach (var file in cpk.fileTable)
             {
-                if (File.Exists($"out/{file.FileName}"))
+                if (File.Exists($"out/{platform}/{file.FileName}"))
                 {
-                    batch_file_list[$"/{file.FileName}"] = Path.GetFullPath($"out/{file.FileName}");
+                    replacedFiles[$"/{file.FileName}"] = Path.GetFullPath($"out/{platform}/{file.FileName}");
                 }
             }
-            patch.Patch("out/scrpt.cpk", true, batch_file_list);
+            patch.Patch($"out/{platform}/scrpt.cpk", true, replacedFiles);
             foreach (var fileName in Directory.GetFiles("texts/zh_Hans/scrpt.cpk", "*.json"))
             {
                 var rawName = Path.GetFileNameWithoutExtension(fileName);
-                File.Delete(Path.Combine("out", rawName));
+                File.Delete($"out/{platform}/{rawName}");
             }
         }
 
         static void CreateRomfsFolder()
         {
-            Directory.CreateDirectory("out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/data/");
-            Copy("out/level1",         "out/01005940182ec000/romfs/Data/level1");
-            Copy("out/scrpt.cpk",      "out/01005940182ec000/romfs/Data/StreamingAssets/scrpt.cpk");
-            Copy("out/vridge.unity3d", "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d");
-            Directory.CreateDirectory("out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/");
-            Copy("out/adv2.unity3d",       "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d");
-            Copy("out/dataselect.unity3d", "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d");
-            Copy("out/omkalb.unity3d",     "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d");
-            Copy("out/title.unity3d",      "out/01005940182ec000/romfs/Data/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d");
+            string romfsDir = "out/Switch/01005940182ec000/romfs/Data";
+            Directory.CreateDirectory($"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/");
+            Directory.CreateDirectory($"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/");
+            Copy("out/Switch/level1",               $"{romfsDir}/level1");
+            Copy("out/Switch/sharedassets0.assets", $"{romfsDir}/sharedassets0.assets");
+            Copy("out/Switch/sharedassets1.assets", $"{romfsDir}/sharedassets1.assets");
+            Copy("out/Switch/scrpt.cpk",            $"{romfsDir}/StreamingAssets/scrpt.cpk");
+            Copy("out/Switch/fonts.unity3d",        $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/fonts.unity3d");
+            Copy("out/Switch/manualp.unity3d",      $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/manualp.unity3d");
+            Copy("out/Switch/manuals.unity3d",      $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/manuals.unity3d");
+            Copy("out/Switch/vridge.unity3d",       $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d");
+            Copy("out/Switch/adv2.unity3d",         $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d");
+            Copy("out/Switch/ci.unity3d",           $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/ci.unity3d");
+            Copy("out/Switch/dataselect.unity3d",   $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d");
+            Copy("out/Switch/omkalb.unity3d",       $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d");
+            Copy("out/Switch/title.unity3d",        $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d");
         }
 
         static void Copy(string source, string destination)
