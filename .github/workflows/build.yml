@@ -40,10 +40,12 @@ jobs:
           Invoke-WebRequest -Uri "https://damassets.autodesk.net/content/dam/autodesk/www/adn/fbx/2020-3-4/fbx202034_fbxsdk_vs2022_pdbs.exe" -OutFile "fbxpdb.exe"
           Start-Process -FilePath "fbxpdb.exe" /S -Wait
           Pop-Location
+      - run: nuget restore
       - name: Build
         run: |
-          nuget restore
-          msbuild /t:STRAHChsLocalizationHelper:publish /p:Configuration=Release /verbosity:minimal
+          msbuild /t:AssetStudioFBXNative /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+          msbuild /t:Texture2DDecoderNative /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+          msbuild /t:STRAHChsLocalizationHelper:publish /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:

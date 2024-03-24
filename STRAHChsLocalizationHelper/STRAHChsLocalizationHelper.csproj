@@ -8,10 +8,11 @@
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>Helper</RootNamespace>
+    <Copyright>Copyright © Xzonn 2022-2023</Copyright>
   </PropertyGroup>
 
   <PropertyGroup>
-    <DebugType>portable</DebugType>
+    <DebugType>embedded</DebugType>
     <EmbedAllSources>true</EmbedAllSources>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <PublishReadyToRun>true</PublishReadyToRun>
@@ -37,4 +38,17 @@
     <Using Include="System.Text" />
   </ItemGroup>
 
+  <Target Name="CopyExtraFiles" AfterTargets="AfterBuild">
+    <Copy SourceFiles="..\AssetStudio\AssetStudioFBXNative\bin\Win32\$(Configuration)\AssetStudioFBXNative.dll" DestinationFolder="$(TargetDir)x86" ContinueOnError="true" />
+    <Copy SourceFiles="..\AssetStudio\AssetStudioFBXNative\bin\x64\$(Configuration)\AssetStudioFBXNative.dll" DestinationFolder="$(TargetDir)x64" ContinueOnError="true" />
+    <Copy SourceFiles="..\AssetStudio\Texture2DDecoderNative\bin\Win32\$(Configuration)\Texture2DDecoderNative.dll" DestinationFolder="$(TargetDir)x86" ContinueOnError="true" />
+    <Copy SourceFiles="..\AssetStudio\Texture2DDecoderNative\bin\x64\$(Configuration)\Texture2DDecoderNative.dll" DestinationFolder="$(TargetDir)x64" ContinueOnError="true" />
+  </Target>
+
+  <Target Name="PublishExtraFiles" AfterTargets="Publish">
+    <Copy SourceFiles="$(TargetDir)x86\AssetStudioFBXNative.dll" DestinationFolder="$(PublishDir)x86" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetDir)x64\AssetStudioFBXNative.dll" DestinationFolder="$(PublishDir)x64" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetDir)x86\Texture2DDecoderNative.dll" DestinationFolder="$(PublishDir)x86" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetDir)x64\Texture2DDecoderNative.dll" DestinationFolder="$(PublishDir)x64" ContinueOnError="true" />
+  </Target>
 </Project>
