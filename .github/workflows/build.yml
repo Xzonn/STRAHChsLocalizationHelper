@@ -33,14 +33,16 @@ jobs:
         if: steps.cache-fbx-sdk.outputs.cache-hit != 'true'
         run: |
           mkdir "bin"
-          mkdir "bin/fbx"
-          Push-Location -Path "bin/fbx"
+          mkdir "bin/fbx/"
+          Push-Location -Path "bin/fbx/"
           Invoke-WebRequest -Uri "https://damassets.autodesk.net/content/dam/autodesk/www/adn/fbx/2020-3-4/fbx202034_fbxsdk_vs2022_win.exe" -OutFile "fbxsdk.exe"
-          Start-Process -FilePath "fbxsdk.exe" /S -Wait
           Invoke-WebRequest -Uri "https://damassets.autodesk.net/content/dam/autodesk/www/adn/fbx/2020-3-4/fbx202034_fbxsdk_vs2022_pdbs.exe" -OutFile "fbxpdb.exe"
-          Start-Process -FilePath "fbxpdb.exe" /S -Wait
           Pop-Location
-      - run: nuget restore
+      - name: Install dependencies
+        run: |
+          Start-Process -FilePath "bin/fbx/fbxsdk.exe" /S -Wait
+          Start-Process -FilePath "bin/fbx/fbxpdb.exe" /S -Wait
+          nuget restore
       - name: Build
         run: |
           msbuild /t:AssetStudioFBXNative /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
@@ -50,4 +52,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: STRAHChsLocalizationHelper
-          path: STRAHChsLocalizationHelper/bin/Release/net8.0-windows/win-x64/publish
+          path: STRAHChsLocalizationHelper/bin/Release/net8.0-windows/win-x64/publish/
