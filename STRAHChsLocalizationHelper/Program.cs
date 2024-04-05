@@ -14,6 +14,7 @@ namespace Helper
             [
                 "sharedassets0.assets",
                 "sharedassets1.assets",
+                "sharedassets2.assets",
                 "level0",
                 "level1",
                 "level2",
@@ -212,6 +213,7 @@ namespace Helper
             Copy("out/Switch/level2",               $"{romfsDir}/level2");
             Copy("out/Switch/sharedassets0.assets", $"{romfsDir}/sharedassets0.assets");
             Copy("out/Switch/sharedassets1.assets", $"{romfsDir}/sharedassets1.assets");
+            Copy("out/Switch/sharedassets2.assets", $"{romfsDir}/sharedassets2.assets");
             Copy("out/Switch/scrpt.cpk",            $"{romfsDir}/StreamingAssets/scrpt.cpk");
             Copy("out/Switch/fonts.unity3d",        $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/fonts.unity3d");
             Copy("out/Switch/manualp.unity3d",      $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/manualp.unity3d");
