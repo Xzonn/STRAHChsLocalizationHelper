@@ -1,11 +1,12 @@
 ﻿using AssetStudio;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Collections.Specialized;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Drawing.Processing;
+using System.Collections.Specialized;
+using System.Diagnostics;
 using Color = SixLabors.ImageSharp.Color;
 
 namespace Helper
@@ -152,6 +153,7 @@ namespace Helper
                 textureRect = m_Sprite.m_RD.textureRect;
                 downscaleMultiplier = m_Sprite.m_RD.downscaleMultiplier;
             }
+            Debug.Assert(downscaleMultiplier == 1f);
             if (m_Texture2D == null) { return false; }
             ReplacedImages.TryGetValue(m_Texture2D.m_PathID, out var textureImage);
             textureImage ??= m_Texture2D.ConvertToImage(false);
@@ -172,6 +174,15 @@ namespace Helper
             textureImage.Mutate(x => x.Clear(Color.Transparent, rect));
             textureImage.Mutate(x => x.DrawImage(spriteImage, new Point(rectX, rectY), 1f));
 
+            var newWidth = textureRect.width - (rectRight - rectX) + spriteImage.Width;
+            var newHeight = textureRect.height - (rectBottom - rectY) + spriteImage.Height;
+            var textureRectDict = (OrderedDictionary)((OrderedDictionary)type["m_RD"]!)["textureRect"]!;
+            textureRectDict["width"] = newWidth;
+            textureRectDict["height"] = newHeight;
+
+            ReplaceWith(m_Sprite.m_PathID, type, m_Type);
+
+            Console.WriteLine($"Replaced (Sprite): {m_Sprite.assetsFile.fileName}/{m_Sprite.m_Name} ({m_Sprite.m_PathID})");
             return true;
         }
 
