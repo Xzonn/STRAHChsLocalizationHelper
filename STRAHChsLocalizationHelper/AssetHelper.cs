@@ -15,15 +15,23 @@ namespace Helper
     {
         static readonly string[] CLASS_FOR_EXPORT =
             [
+                "Text",
+
+                // STRAH
                 "AppGameDataTipsData",
                 "FlowChartData",
                 "TextFlyMoveData",
-
-                "Text",
+                
+                // YCHAND
+                "MainMenuUiItem",
+                "OptionItemValueText",
+                "AppGameDataTalkTbl",
+                "OmakeData",
+                "TalkSelectChara",
             ];
         static readonly string[] SPRITE_BLACKLIST =
-           [
-               "Title_Copyright",
+            [
+                "Title_Copyright",
                 "Title_logo",
             ];
         public readonly Dictionary<long, Stream> ReplacedStreams = [];
@@ -36,48 +44,76 @@ namespace Helper
             var m_Type = m_MonoBehaviour.serializedType?.m_Type;
             if (m_Type == null)
             {
-                using var fs = File.OpenRead($"files/TypeTree/{m_ClassName}.bin");
-                m_Type = TypeTreeHelper.LoadTypeTree(new BinaryReader(fs));
+                if (Path.Exists($"files/TypeTree/{m_ClassName}.bin"))
+                {
+                    using var fs = File.OpenRead($"files/TypeTree/{m_ClassName}.bin");
+                    m_Type = TypeTreeHelper.LoadTypeTree(new BinaryReader(fs));
+                }
+                else
+                {
+                    AssemblyLoader assemblyLoader = new();
+                    assemblyLoader.Load("DummyDll");
+                    m_Type = m_MonoBehaviour.ConvertToTypeTree(assemblyLoader);
+
+                    using var fs = File.OpenWrite($"files/TypeTree/{m_ClassName}.bin");
+                    TypeTreeHelper.DumpTypeTree(m_Type, new BinaryWriter(fs));
+                }
             }
             var type = m_MonoBehaviour.ToType(m_Type);
 
-            if (m_ClassName == "Text")
+            switch (m_ClassName)
             {
-                string text = (string)type["m_Text"]!;
+                case "Text":
+                    if (!ReplaceText("m_Text")) { return false; }
+                    break;
+                case "MainMenuUiItem":
+                    if (!ReplaceText("menuName")) { return false; }
+                    break;
+                case "OptionItemValueText":
+                    if (!ReplaceText("textStr")) { return false; }
+                    break;
+                default:
+                    string filePath = m_ClassName;
+                    if (m_ClassName == "OmakeData" || m_ClassName == "TalkSelectChara") { filePath = $"{m_ClassName}_{m_MonoBehaviour.m_PathID:x16}"; }
+                    if (!File.Exists($"texts/zh_Hans/{filePath}.json"))
+                    {
+                        string json = JsonConvert.SerializeObject(type, Formatting.Indented);
+                        File.WriteAllText($"texts/zh_Hans/{filePath}.json", json);
+                        Console.WriteLine($"Extracted (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName}");
+                        return false;
+                    }
+                    else
+                    {
+                        string json = File.ReadAllText($"texts/zh_Hans/{filePath}.json");
+                        var jObject = JsonConvert.DeserializeObject<JObject>(json);
+                        type = JsonHelper.ReadType(m_Type, jObject);
+                        ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                    }
+
+                    break;
+            }
+
+            Console.WriteLine($"Replaced (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName} ({m_MonoBehaviour.m_PathID})");
+            return true;
+
+            bool ReplaceText(string key)
+            {
+                string text = (string)type[key]!;
                 if (textTranslations.TryGetValue(text, out var translation))
                 {
                     if (translation != text)
                     {
-                        type["m_Text"] = translation;
+                        type[key] = translation;
                         ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                        return true;
                     }
                 }
                 else
                 {
                     textTranslations[text] = text;
-                    return false;
                 }
+                return false;
             }
-            else
-            {
-                if (!File.Exists($"texts/zh_Hans/{m_ClassName}.json"))
-                {
-                    string json = JsonConvert.SerializeObject(type, Formatting.Indented);
-                    File.WriteAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json", json);
-                    Console.WriteLine($"Extracted (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName}");
-                    return false;
-                }
-                else
-                {
-                    string json = File.ReadAllText($"texts/zh_Hans/{m_Script.m_ClassName}.json");
-                    var jObject = JsonConvert.DeserializeObject<JObject>(json);
-                    type = JsonHelper.ReadType(m_Type, jObject);
-                    ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
-                }
-            }
-
-            Console.WriteLine($"Replaced (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName} ({m_MonoBehaviour.m_PathID})");
-            return true;
         }
 
         public bool ReplaceTexture(Texture2D m_Texture2D)

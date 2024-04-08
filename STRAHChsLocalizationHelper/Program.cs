@@ -10,48 +10,41 @@ namespace Helper
 {
     internal class Program
     {
-        static readonly string[] FILE_NAMES =
-            [
-                "sharedassets0.assets",
-                "sharedassets1.assets",
-                "sharedassets2.assets",
-                "level0",
-                "level1",
-                "level2",
-
-                "fonts.unity3d",
-                "manualp.unity3d",
-                "manuals.unity3d",
-                "vridge.unity3d",
-
-                "adv2.unity3d",
-                "ci.unity3d",
-                "dataselect.unity3d",
-                "omkalb.unity3d",
-                "title.unity3d",
-            ];
-
-        static void Main(string[] args)
+        static void Main()
         {
             Logger.Default = new LogHelper();
 
-            foreach (var platform in new string[] { "Switch" })
+            if (!Enum.TryParse(Environment.GetEnvironmentVariable("XZ_PLATFORM") ?? "Switch", out Platform platform))
             {
-                ExtractFiles(platform);
-                PatchAsset(platform);
-                PatchBundle(platform);
-                PatchPak(platform);
+                throw new ArgumentException("Invalid platform");
+            }
+            if (!Enum.TryParse(Environment.GetEnvironmentVariable("XZ_GAME") ?? "STRAH", out Game game))
+            {
+                throw new ArgumentException("Invalid game");
+            }
 
-                if (platform == "Switch")
-                {
-                    CreateRomfsFolder();
-                }
+            ExtractFiles(platform, game);
+            PatchAsset(platform, game);
+            PatchBundle(platform, game);
+            PatchPak(platform, game);
+
+            if (platform == Platform.Switch)
+            {
+                CreateRomfsFolder(game);
+            }
+            else if (platform == Platform.PS4)
+            {
+                throw new NotImplementedException("Not implemented");
+            }
+            else
+            {
+                throw new ArgumentException("Invalid platform");
             }
         }
 
-        static void ExtractFiles(string platform)
+        static void ExtractFiles(Platform platform, Game game)
         {
-            if (!File.Exists($"original_files/{platform}/level1"))
+            if (!File.Exists($"original_files/{platform}/Data/level1"))
             {
                 Directory.CreateDirectory($"original_files/{platform}/");
                 using ZipFile archive = new($"original_files/{platform}.zip")
@@ -64,15 +57,14 @@ namespace Helper
             }
         }
 
-        static void PatchAsset(string platform)
+        static void PatchAsset(Platform platform, Game game)
         {
             AssetsManager manager = new()
             {
                 SpecifyUnityVersion = "2020.3.37f1"
             };
 
-            manager.LoadFiles(FILE_NAMES.Select(x => $"original_files/{platform}/{x}").ToArray());
-            Directory.CreateDirectory($"out/{platform}");
+            manager.LoadFolder($"original_files/{platform}");
 
             Dictionary<string, string> textTranslations = [];
             if (File.Exists("texts/zh_Hans/Text.json"))
@@ -115,7 +107,11 @@ namespace Helper
                 }
                 if (assetHelper.ReplacedStreams.Count > 0)
                 {
-                    assetsFile.SaveAs($"out/{platform}/{assetsFile.fileName}", assetHelper.ReplacedStreams);
+                    string newPath = string.IsNullOrEmpty(assetsFile.originalPath)
+                        ? Path.GetRelativePath("original_files", assetsFile.fullName)
+                        : assetsFile.fileName;
+                    Directory.CreateDirectory(Path.GetDirectoryName($"out/{newPath}")!);
+                    assetsFile.SaveAs($"out/{newPath}", assetHelper.ReplacedStreams);
                     foreach (var (m_PathID, stream) in assetHelper.ReplacedStreams)
                     {
                         stream.Dispose();
@@ -135,12 +131,12 @@ namespace Helper
             File.WriteAllText("texts/zh_Hans/Text.json", JsonConvert.SerializeObject(textTranslationsSorted, Formatting.Indented));
         }
 
-        static void PatchBundle(string platform)
+        static void PatchBundle(Platform platform, Game game)
         {
-            foreach (string fileName in FILE_NAMES)
+            var files = Directory.GetFiles($"original_files/{platform}", "*.unity3d", SearchOption.AllDirectories);
+            foreach (string fileName in files)
             {
-                if (!fileName.EndsWith(".unity3d")) { continue; }
-                var reader = new BundleHelper.EndianBinaryReader(File.OpenRead($"original_files/{platform}/{fileName}"));
+                var reader = new BundleHelper.EndianBinaryReader(File.OpenRead(fileName));
                 Bundle bundleData = new(reader);
 
                 reader.Close();
@@ -148,9 +144,9 @@ namespace Helper
                 bool changed = false;
                 foreach (var file in bundleData.FileList)
                 {
-                    if (File.Exists($"out/{platform}/{file.fileName}"))
+                    if (File.Exists($"out/{file.fileName}"))
                     {
-                        file.stream = File.OpenRead($"out/{platform}/{file.fileName}");
+                        file.stream = File.OpenRead($"out/{file.fileName}");
                         changed = true;
                     }
                 }
@@ -160,76 +156,69 @@ namespace Helper
                 }
 
                 Console.WriteLine($"Writing: {fileName}");
-                var writer = new BundleHelper.EndianBinaryWriter(File.Create($"out/{platform}/{fileName}"));
+                var relativePath = Path.GetRelativePath("original_files", fileName);
+                Directory.CreateDirectory(Path.GetDirectoryName($"out/{relativePath}")!);
+                var writer = new BundleHelper.EndianBinaryWriter(File.Create($"out/{relativePath}"));
                 bundleData.DumpRaw(writer);
 
                 writer.Close();
-                foreach (var file in bundleData.FileList)
-                {
-                    if (File.Exists($"out/{platform}/{file.fileName}"))
-                    {
-                        File.Delete($"out/{platform}/{file.fileName}");
-                    }
-                }
             }
         }
 
-        static void PatchPak(string platform)
+        static void PatchPak(Platform platform, Game game)
         {
             var writer = new XorWriter();
             foreach (var fileName in Directory.GetFiles("texts/zh_Hans/scrpt.cpk", "*.json"))
             {
                 var rawName = Path.GetFileNameWithoutExtension(fileName);
                 Console.WriteLine($"Writing: {rawName}");
-                writer.Write(fileName, $"out/{platform}/{rawName}");
+                writer.Write(fileName, $"out/{rawName}");
             }
             var cpk = new CPK();
-            cpk.ReadCPK($"original_files/{platform}/scrpt.cpk");
+            cpk.ReadCPK($"original_files/{platform}/Data/StreamingAssets/scrpt.cpk");
             var replacedFiles = new Dictionary<string, string>();
-            var patch = new PatchCPK(cpk, Path.GetFullPath($"original_files/{platform}/scrpt.cpk"));
+            var patch = new PatchCPK(cpk, Path.GetFullPath($"original_files/{platform}/Data/StreamingAssets/scrpt.cpk"));
             patch.SetListener(null, Console.WriteLine, null);
             foreach (var file in cpk.fileTable)
             {
-                if (File.Exists($"out/{platform}/{file.FileName}"))
+                if (File.Exists($"out/{file.FileName}"))
                 {
-                    replacedFiles[$"/{file.FileName}"] = Path.GetFullPath($"out/{platform}/{file.FileName}");
+                    replacedFiles[$"/{file.FileName}"] = Path.GetFullPath($"out/{file.FileName}");
                 }
             }
-            patch.Patch($"out/{platform}/scrpt.cpk", true, replacedFiles);
-            foreach (var fileName in Directory.GetFiles("texts/zh_Hans/scrpt.cpk", "*.json"))
+            Directory.CreateDirectory($"out/{platform}/Data/StreamingAssets");
+            patch.Patch($"out/{platform}/Data/StreamingAssets/scrpt.cpk", true, replacedFiles);
+#if !DEBUG
+            foreach (var fileName in replacedFiles)
             {
-                var rawName = Path.GetFileNameWithoutExtension(fileName);
-                File.Delete($"out/{platform}/{rawName}");
+                File.Delete(fileName.Value);
             }
+#endif
         }
 
-        static void CreateRomfsFolder()
+        static void CreateRomfsFolder(Game game)
         {
-            string romfsDir = "out/Switch/01005940182ec000/romfs/Data";
-            Directory.CreateDirectory($"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/");
-            Directory.CreateDirectory($"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/");
-            Copy("out/Switch/level0",               $"{romfsDir}/level0");
-            Copy("out/Switch/level1",               $"{romfsDir}/level1");
-            Copy("out/Switch/level2",               $"{romfsDir}/level2");
-            Copy("out/Switch/sharedassets0.assets", $"{romfsDir}/sharedassets0.assets");
-            Copy("out/Switch/sharedassets1.assets", $"{romfsDir}/sharedassets1.assets");
-            Copy("out/Switch/sharedassets2.assets", $"{romfsDir}/sharedassets2.assets");
-            Copy("out/Switch/scrpt.cpk",            $"{romfsDir}/StreamingAssets/scrpt.cpk");
-            Copy("out/Switch/fonts.unity3d",        $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/fonts.unity3d");
-            Copy("out/Switch/manualp.unity3d",      $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/manualp.unity3d");
-            Copy("out/Switch/manuals.unity3d",      $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/manuals.unity3d");
-            Copy("out/Switch/vridge.unity3d",       $"{romfsDir}/StreamingAssets/Switch/AssetBundles/data/vridge.unity3d");
-            Copy("out/Switch/adv2.unity3d",         $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/adv2.unity3d");
-            Copy("out/Switch/ci.unity3d",           $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/ci.unity3d");
-            Copy("out/Switch/dataselect.unity3d",   $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/dataselect.unity3d");
-            Copy("out/Switch/omkalb.unity3d",       $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/omkalb.unity3d");
-            Copy("out/Switch/title.unity3d",        $"{romfsDir}/StreamingAssets/Switch/AssetBundles/mgr/title.unity3d");
-        }
+            string titleId = (game switch
+            {
+                Game.STRAH => "01005940182EC000",
+                Game.YCHAND => "0100D12014FC2000",
+                _ => throw new ArgumentException("Invalid game")
+            }).ToLower();
+            string romfsDir = $"out/{titleId}/romfs";
 
-        static void Copy(string source, string destination)
-        {
-            if (!File.Exists(source)) return;
-            File.Move(source, destination, true);
+            foreach (var fileName in Directory.EnumerateFiles("out/Switch", "*", SearchOption.AllDirectories))
+            {
+                var relativePath = Path.GetRelativePath("out/Switch", fileName);
+                Directory.CreateDirectory(Path.GetDirectoryName($"{romfsDir}/{relativePath}")!);
+                File.Move(fileName, $"{romfsDir}/{relativePath}", true);
+            }
+#if !DEBUG
+            Directory.Delete("out/Switch", true);
+            foreach (var fileName in Directory.EnumerateFiles("out/", "CAB-*"))
+            {
+                File.Delete(fileName);
+            }
+#endif
         }
     }
 }
