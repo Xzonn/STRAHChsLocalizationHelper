@@ -61,7 +61,12 @@ namespace Helper
         {
             AssetsManager manager = new()
             {
-                SpecifyUnityVersion = "2020.3.37f1"
+                SpecifyUnityVersion = game switch
+                {
+                    Game.STRAH => "2020.3.37f1",
+                    Game.YCHAND => "2020.3.14f1",
+                    _ => throw new ArgumentException("Invalid game")
+                }
             };
 
             manager.LoadFolder($"original_files/{platform}");
@@ -81,7 +86,7 @@ namespace Helper
                     if (@object is MonoBehaviour m_MonoBehaviour
                         && m_MonoBehaviour.m_Script.TryGet(out var m_Script))
                     {
-                        assetHelper.ReplaceMonoBehaviour(m_MonoBehaviour, m_Script, textTranslations);
+                        assetHelper.ReplaceMonoBehaviour(m_MonoBehaviour, m_Script, textTranslations, game);
                     }
                     else if ((@object is Texture2D m_Texture2D)
                         && File.Exists($"files/images/{m_Texture2D.m_Name}.png"))
