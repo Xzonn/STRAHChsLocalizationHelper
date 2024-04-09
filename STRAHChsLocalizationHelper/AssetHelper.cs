@@ -37,7 +37,7 @@ namespace Helper
         public readonly Dictionary<long, Stream> ReplacedStreams = [];
         public readonly Dictionary<long, Image<Bgra32>> ReplacedImages = [];
 
-        public bool ReplaceMonoBehaviour(MonoBehaviour m_MonoBehaviour, MonoScript m_Script, Dictionary<string, string> textTranslations)
+        public bool ReplaceMonoBehaviour(MonoBehaviour m_MonoBehaviour, MonoScript m_Script, Dictionary<string, string> textTranslations, Game game = Game.STRAH)
         {
             var m_ClassName = m_Script.m_ClassName;
             if (!CLASS_FOR_EXPORT.Contains(m_ClassName)) { return false; }
@@ -64,30 +64,67 @@ namespace Helper
             switch (m_ClassName)
             {
                 case "Text":
-                    if (!ReplaceText("m_Text")) { return false; }
+                    if (!replaceText("m_Text")) { return false; }
                     break;
                 case "MainMenuUiItem":
-                    if (!ReplaceText("menuName")) { return false; }
+                    if (!replaceText("menuName")) { return false; }
                     break;
                 case "OptionItemValueText":
-                    if (!ReplaceText("textStr")) { return false; }
+                    if (!replaceText("textStr")) { return false; }
+                    break;
+                case "AppGameDataTalkTbl":
+                    {
+                        var translated = false;
+                        foreach (var item in ((List<object>)type["datas"]!).Cast<OrderedDictionary>())
+                        {
+                            if (translate((string)item["charaName"]!, out var translation))
+                            {
+                                translated = true;
+                                item["charaName"] = translation;
+                            }
+                        }
+                        if (!translated) { return false; }
+                        ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                    }
+                    break;
+                case "TalkSelectChara":
+                    {
+                        var translated = false;
+                        var charaString = (List<object>)type["charaString"]!;
+                        for (var i = 0; i < charaString.Count; i++)
+                        {
+                            if (translate((string)charaString[i]!, out var translation))
+                            {
+                                translated = true;
+                                charaString[i] = translation!;
+                            }
+                        }
+                        if (!translated) { return false; }
+                        ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                    }
                     break;
                 default:
-                    string filePath = m_ClassName;
-                    if (m_ClassName == "OmakeData" || m_ClassName == "TalkSelectChara") { filePath = $"{m_ClassName}_{m_MonoBehaviour.m_PathID:x16}"; }
-                    if (!File.Exists($"texts/zh_Hans/{filePath}.json"))
                     {
-                        string json = JsonConvert.SerializeObject(type, Formatting.Indented);
-                        File.WriteAllText($"texts/zh_Hans/{filePath}.json", json);
-                        Console.WriteLine($"Extracted (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName}");
-                        return false;
-                    }
-                    else
-                    {
-                        string json = File.ReadAllText($"texts/zh_Hans/{filePath}.json");
-                        var jObject = JsonConvert.DeserializeObject<JObject>(json);
-                        type = JsonHelper.ReadType(m_Type, jObject);
-                        ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                        string filePath = m_ClassName;
+                        if (m_ClassName == "OmakeData")
+                        {
+                            if (game == Game.STRAH) { return false; }
+                            filePath = $"{m_ClassName}_{m_MonoBehaviour.m_PathID:x16}";
+                        }
+                        if (!File.Exists($"texts/zh_Hans/{filePath}.json"))
+                        {
+                            string json = JsonConvert.SerializeObject(type, Formatting.Indented);
+                            File.WriteAllText($"texts/zh_Hans/{filePath}.json", json);
+                            Console.WriteLine($"Extracted (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName}");
+                            return false;
+                        }
+                        else
+                        {
+                            string json = File.ReadAllText($"texts/zh_Hans/{filePath}.json");
+                            var jObject = JsonConvert.DeserializeObject<JObject>(json);
+                            type = JsonHelper.ReadType(m_Type, jObject);
+                            ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                        }
                     }
 
                     break;
@@ -96,23 +133,31 @@ namespace Helper
             Console.WriteLine($"Replaced (MonoBehaviour): {m_MonoBehaviour.assetsFile.fileName}/{m_ClassName} ({m_MonoBehaviour.m_PathID})");
             return true;
 
-            bool ReplaceText(string key)
+            bool replaceText(string key)
             {
-                string text = (string)type[key]!;
-                if (textTranslations.TryGetValue(text, out var translation))
+                if (translate((string)type[key]!, out var translation))
                 {
-                    if (translation != text)
-                    {
-                        type[key] = translation;
-                        ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
-                        return true;
-                    }
+                    type[key] = translation;
+                    ReplaceWith(m_MonoBehaviour.m_PathID, type, m_Type);
+                    return true;
                 }
                 else
                 {
-                    textTranslations[text] = text;
+                    return false;
                 }
-                return false;
+            }
+
+            bool translate(string japanese, out string? chinese)
+            {
+                if (textTranslations.TryGetValue(japanese, out chinese) && japanese != chinese)
+                {
+                    return true;
+                }
+                else
+                {
+                    textTranslations[japanese] = japanese;
+                    return false;
+                }
             }
         }
 
