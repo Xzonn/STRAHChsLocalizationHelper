@@ -27,6 +27,7 @@ namespace Helper
             PatchAsset(platform, game);
             PatchBundle(platform, game);
             PatchPak(platform, game);
+            PatchMetadata(platform, game);
 
             if (platform == Platform.Switch)
             {
@@ -201,6 +202,59 @@ namespace Helper
 #endif
         }
 
+        struct MetadataItem
+        {
+            public int position;
+            public int length;
+            public string text;
+        }
+
+        static void PatchMetadata(Platform platform, Game game)
+        {
+            using var br = new BinaryReader(File.OpenRead($"original_files/{platform}/Data/Managed/Metadata/global-metadata.dat"));
+
+            br.BaseStream.Position = 0x08;
+            uint stringLiteralOffset = br.ReadUInt32();
+            int stringLiteralSize = br.ReadInt32();
+            uint stringLiteralDataOffset = br.ReadUInt32();
+            int stringLiteralDataSize = br.ReadInt32();
+
+            var lengthPosition = new Dictionary<long, long>();
+            br.BaseStream.Position = stringLiteralOffset;
+            for (int i = 0; i < stringLiteralSize; i++)
+            {
+                long position = br.BaseStream.Position;
+                uint length = br.ReadUInt32();
+                int dataPosition = br.ReadInt32();
+                lengthPosition[dataPosition + stringLiteralDataOffset] = position;
+            }
+
+            var metadataList = JsonConvert.DeserializeObject<List<MetadataItem>>(File.ReadAllText("texts/zh_Hans/Metadata.json"))!;
+            Directory.CreateDirectory($"out/{platform}/Data/Managed/Metadata");
+            using var bw = new BinaryWriter(File.Create($"out/{platform}/Data/Managed/Metadata/global-metadata.dat"));
+
+            br.BaseStream.Position = 0;
+            bw.Write(br.ReadBytes((int)br.BaseStream.Length));
+
+            foreach (var item in metadataList)
+            {
+                bw.BaseStream.Position = item.position;
+                byte[] buffer = new byte[item.length];
+                byte[] bytes = Encoding.UTF8.GetBytes(item.text);
+                if (bytes.Length > item.length)
+                {
+                    Console.Error.WriteLine($"Text is too long: {item.text}");
+                    bytes = bytes.Take(item.length).ToArray();
+                }
+                bytes.CopyTo(buffer, 0);
+                bw.Write(buffer);
+
+                bw.BaseStream.Position = lengthPosition[item.position];
+                bw.Write((uint)bytes.Length);
+            }
+            Console.WriteLine($"Saved: global-metadata.dat");
+        }
+
         static void CreateRomfsFolder(Game game)
         {
             string titleId = (game switch
@@ -208,8 +262,8 @@ namespace Helper
                 Game.STRAH => "01005940182EC000",
                 Game.YCHAND => "0100D12014FC2000",
                 _ => throw new ArgumentException("Invalid game")
-            }).ToLower();
-            string romfsDir = $"out/{titleId}/romfs";
+            });
+            string romfsDir = $"out/{titleId.ToLower()}/romfs";
 
             foreach (var fileName in Directory.EnumerateFiles("out/Switch", "*", SearchOption.AllDirectories))
             {

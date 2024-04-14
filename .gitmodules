@@ -1,11 +1,9 @@
 [submodule "AssetStudio"]
 	path = AssetStudio
 	url = https://github.com/Xzonn/AssetStudio.git
-
 [submodule "BundleHelper"]
 	path = BundleHelper
 	url = https://github.com/Xzonn/BundleHelper.git
-
 [submodule "CriPakTools"]
 	path = CriPakTools
 	url = https://github.com/Xzonn/CriPakTools.git
